@@ -17,7 +17,9 @@ USAGE: $(basename $0) -r RAM[k/m/g], -c CORES, -d /path/to/drive,
 "
 
 # unset
+WRITE=
 STARTER=
+ARGS=
 
 # command args
 declare -A ARGS
@@ -42,25 +44,29 @@ isnt() {
 
 start_qemu () {
          sudo qemu-system-x86_64 \
-                -enable-kvm -smp cpus=${CORES} \
+	 	-bios /usr/share/edk2-ovmf/OVMF.fd \
+                $CDROM \
+		-enable-kvm -smp cpus=${CORES} \
                 --display vnc=${HOST_IP}:${VNC} \
                 -drive file=${DRIVE},format=${FORMAT} \
                 -m ${RAM} \
                 -device virtio-net,netdev=network0 \
-                -netdev tap,id=network0,ifname=${TAP_DEV},\
-                mac=${MAC},script=no,downscript=no
+                -netdev tap,id=network0,ifname=${TAP_DEV},script=no,downscript=no \
+		-nic mac=${MAC}
 }
 
 write_config () {
         cat << EOF > qkvm-${1}.sh
 $( echo sudo qemu-system-x86_64 \
+	 	-bios /usr/share/edk2-ovmf/OVMF.fd \
+		$CDROM \
                 -enable-kvm -smp cpus=${CORES} \
                 --display vnc=${HOST_IP}${VNC} \
                 -drive file=${DRIVE},format=${FORMAT} \
                 -m ${RAM} \
                 -device virtio-net,netdev=network0 \
-                -netdev tap,id=network0,ifname=${TAP_DEV},\
-                mac=${MAC},script=no,downscript=no )
+                -netdev tap,id=network0,ifname=${TAP_DEV},script=no,downscript=no \
+		-nic mac=${MAC} )
 EOF
 }
 
@@ -70,13 +76,13 @@ while getopts r:c:d:C:f:i:t:m:v:W:S opt; do
                 r) RAM=$OPTARG;;
                 c) CORES=$OPTARG;;
                 d) DRIVE=$OPTARG;;
-                C) CDROM=$OPTARG;;
+                C) CDROM="-cdrom $OPTARG -boot order=d ";;
                 f) FORMAT=$OPTARG;;
                 i) HOST_IP=$OPTARG;;
                 t) TAP_DEV=$OPTARG;;
                 m) MAC=$OPTARG;;
                 v) VNC=$OPTARG;;
-                W) write_config $OPTARG;;
+                W) FILE=$OPTARG; WRITE=1;;
                 S) STARTER=1;;
                 *) die $USAGE
         esac
@@ -102,11 +108,12 @@ for x in ${!ARGS[@]}; do
                 FORMAT) isnt $FORMAT && FORMAT=raw;;
                 HOST_IP) isnt $HOST_IP && HOST_IP=$IPADDR;;
                 TAP_DEV) isnt $TAP_DEV && TAP_DEV=tap0;;
-                MAC) isnt $MAC && MAC=$(macgen.sh);;
+                MAC) isnt $MAC && MAC=$(${HOME}/bin/macgen.sh);;
                 VNC) isnt $VNC && VNC=:3;;
         esac
-        # double negitive wtf?
         echo  "${x}:${!x}"
 done
+
 # run command if -S flag was used
+isnt $WRITE || write_config ${FILE}
 isnt $STARTER || start_qemu

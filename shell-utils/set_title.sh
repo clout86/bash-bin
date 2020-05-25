@@ -1,1 +1,0 @@
-echo -en "\033];$BASH_COMMAND:${USER}@${HOSTNAME}:${PWD}\007"
